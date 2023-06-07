@@ -115,6 +115,83 @@ class SearchEngineIndexer:
             logging.error("Erro de adição de documento ao SOLR.")
             logging.error(e)
 
+    # Write a simple method to query an index for some keywords
+    def query_with_solr(self, query_str:str):
+        # Search query
+        query = f'content:"{query_str}"'
+        # Query parameters
+        params = {
+            'q': query
+        }
+        # Send the search request to Solr
+        response = requests.get(f'{self.hosts[0]}/select', params=params)
+
+        # Parse the response JSON
+        json_response = response.json()
+
+        # Get the search results
+        results = json_response['response']['docs']
+
+        # Process the search results
+        for result in results:
+            # Access the document fields
+            doc_id = result['id']
+            # Limit the amount of characters to display
+            content = result['content'][0][0:200]
+            # Process or print the fields
+            logging.info(f"Document ID: {doc_id}")
+            logging.info(f"Content: {content}")
+
+        # Print the total number of search results
+        total_results = json_response['response']['numFound']
+        print(f'Total results: {total_results}')
+
+    def highlight_solr(self, query_str:str):
+        # Search query
+        query = f'content:"{query_str}"'
+        # Query parameters
+        params = {
+            'q': query,
+            'hl': 'true',  # Enable highlighting
+            'hl.fl': 'content',  # Specify the field to highlight
+            'hl.fragsize': 250,
+            'hl.snippets': 20,
+            'hl.maxAnalyzedChars': 200000,
+            'hl.simple.pre': '<strong>',  # Prefix for highlighted terms
+            'hl.simple.post': '</strong>'  # Suffix for highlighted terms
+        }
+
+        # Send the search request to Solr
+        response = requests.get(f'{self.hosts[0]}/select', params=params)
+
+        # Parse the response JSON
+        json_response = response.json()
+
+        # Get the search results
+        results = json_response['response']['docs']
+
+        # Process the search results
+        for result in results:
+            # Access the document fields
+            doc_id = result['id']
+            content = result['content'][0][0:200]
+
+            # Access the highlight information
+            highlights = json_response['highlighting'][doc_id]['content']
+
+
+            # Process or print the fields and highlights
+            logging.info(f"Document ID: {doc_id}")
+            logging.info(f"**** HIGHLIGHTS: {len(highlights)}")
+            logging.info(highlights)
+            # Loop through the highlights and print up to 10 highlights
+            for i, highlight in enumerate(highlights[:10]):
+               logging.info(f"\n →→→ Highlight {i+1}: \n{highlight}\n")
+
+        # Print the total number of search results
+        total_results = json_response['response']['numFound']
+        logging.info(f' * Total results: {total_results}')
+
     # Process and index all files in the data directory
     def process_and_index_files(self, files_directory=None):
         if files_directory is None and self.files_directory is not None:

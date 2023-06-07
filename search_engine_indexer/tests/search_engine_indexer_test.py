@@ -5,6 +5,8 @@ import logging
 import requests
 import json
 
+# Run tests with: python -m unittest discover -s tests -p "*_test.py"
+
 # Initialize logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -32,13 +34,15 @@ query_body =  {'query': {'match': {'content': query}}}
 try:
     solr_indexer = SearchEngineIndexer(None, 'SOLR', solr_host_index)
     # Process and index the files
+    '''
     logging.info("Starting to process files to SOLR index")
     solr_indexer.process_and_index_files(data_directory)
     logging.info("Done processing files to SOLR index")
+    '''
     # Search the SOLR server
-    # TODO: implement requests query
-    # logging.info("→ Testing SOLR query")
-
+    logging.info("→ Testing SOLR query")
+    #solr_indexer.query_with_solr("violência contra mulheres")
+    solr_indexer.highlight_solr("violência contra mulheres")
 except Exception as e:
     logging.error(e)
 
