@@ -1,0 +1,2 @@
+# Add .pvc files to gitignore
+*.pyc
