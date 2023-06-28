@@ -36,18 +36,22 @@ def solr_test():
     ### SOLR Indexing and querying ###
     # Create a SOLR instance of SearchEngineIndexer
     try:
-        solr_indexer = SearchEngineIndexer(None, 'SOLR', solr_host_index)
+        solr_indexer = SearchEngineIndexer('SOLR', solr_host_index)
         # Process and index the files
 
-        #logging.info("Starting to process files to SOLR index")
-        #solr_indexer.process_and_index_files(data_directory)
-        #logging.info("Done processing files to SOLR index")
+        # logging.info("Starting to process files to SOLR index")
+        # solr_indexer.process_and_index_files(data_directory)
+        # logging.info("Done processing files to SOLR index")
         # Search the SOLR server
-        logging.info("→ Testing SOLR query")
-        #solr_indexer.query_with_solr("violência contra mulheres")
-        #solr_indexer.highlight_solr("violência contra")
-        #solr_indexer.complex_query_highlight_solr("violência contra mulheres", ["pretas", "pardas", "de cor", "indígenas", "estrangeiras", "imigrantes"])
-        solr_indexer.complex_query_highlight_solr("violência contra", ["mulheres", "combate"]) # "ambiente familiar"
+        if solr_indexer:
+            logging.info("→ Testing SOLR")
+            #solr_indexer.query_with_solr('violência doméstica')
+            # solr_indexer.query_with_solr('violência contra mulheres')
+            solr_indexer.highlight_solr("violência contra mulheres")
+            #solr_indexer.complex_query_highlight_solr("violência contra mulheres", ["pretas", "pardas", "de cor", "indígenas", "estrangeiras", "imigrantes"])
+            #solr_indexer.complex_query_highlight_solr("violência contra", ["mulheres", "combate"]) # "ambiente familiar"
+            #solr_indexer.delete_solr(solr_host_index[0])
+            #solr_indexer.add_document_solr(payload)
     except Exception as e:
         logging.error(e)
 
@@ -57,7 +61,7 @@ def elasticsearch_test():
     # Create an instance of SearchEngineIndexer
     try:
         es_indexer = SearchEngineIndexer(
-            None, "ES", elasticsearch_hosts, elasticsearch_index
+            "ES", elasticsearch_hosts, elasticsearch_index
         )
 
         # Process and index the files
@@ -95,7 +99,7 @@ def elasticsearch_test():
 ### Open Search Indexing and querying ###
 def opensearch_test():
     # Create an instance of SearchEngineIndexer
-    os_indexer = SearchEngineIndexer(None, 'OS', opensearch_hosts, opensearch_index)
+    os_indexer = SearchEngineIndexer('OS', opensearch_hosts, opensearch_index)
     # Process and index the files
     #logging.info("→→→ Starting to process files to OS index")
     #os_indexer.process_and_index_files(data_directory)
@@ -116,4 +120,6 @@ def opensearch_test():
             os_indexer.close_connections()
 
 # Running the following tests:
-elasticsearch_test()
+solr_test()
+#elasticsearch_test()
+#opensearch_test()
