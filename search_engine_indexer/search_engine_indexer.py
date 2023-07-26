@@ -552,16 +552,23 @@ class SearchEngineIndexer:
             logging.info("*** Querying with pySolr:")
             # Search query
             query = f'{field_name}:"{query_str}"'
+            not_query = f'-content_br:("denúncia 180")'
+            # query = query + ' ' + not_query
+            logging.info(f"→→→→→→→→→→→→→→→ query: {query}")
+
+            type = "unified" # fastVector, original
             # Set the field to search in
             params = {
                 "df": field_name,
                 "hl": "true",  # Enable highlighting
+                'hl.q': query,
                 "hl.fl": field_name,  # Specify the field to highlight
                 "hl.fragsize": 100,  # Fragment size (number of characters)
                 "hl.snippets": 20,  # Number of snippets to return
                 "hl.maxAnalyzedChars": 200000,  # Maximum number of characters to analyze for highlighting
-                "hl.simple.pre": "<strong>",  # Prefix for highlighted terms
-                "hl.simple.post": "</strong>",  # Suffix for highlighted terms
+                "hl.simple.pre": "→→→",  # Prefix for highlighted terms
+                "hl.simple.post": "←←←",  # Suffix for highlighted terms
+                "hl.method": type # Highlighter type
             }
             # Check search:
             results = solr_client.search(query, **params)
@@ -593,12 +600,14 @@ class SearchEngineIndexer:
             params = {
                 "q": query,
                 "hl": "true",  # Enable highlighting
+                "hl.q": query,
                 "hl.fl": field_name,  # Specify the field to highlight
                 "hl.fragsize": 100,
                 "hl.snippets": 10,
                 "hl.maxAnalyzedChars": 200000,
                 "hl.simple.pre": "→→→",  # Prefix for highlighted terms
                 "hl.simple.post": "←←←",  # Suffix for highlighted terms
+                "hl.method": type
             }
 
             # Send the search request to Solr
@@ -739,7 +748,7 @@ class SearchEngineIndexer:
     def highlight_opensearch(self, url: str, index_name:str, query_str: str, field_name: str, proximity_distance=None):
         start_time = time.time()
         os_client = self.client
-        type = "fvh"
+        type = "plain"
          # Build the query body based on the query type
         query_body = {
             "query": {},
@@ -963,11 +972,11 @@ class SearchEngineIndexer:
                 logging.error(f"Error: {response.content}")
                 return 0
 
-    # Delete all documents from the ElasticSearch collection
+    # Delete all documents from the OpenSearch index
     # Client: TEST | Requests: TEST
     @log_execution_time
-    def delete_opensearch(self, index_name):
-        url = f"http://localhost:9200/{index_name}/_delete_by_query"
+    def delete_opensearch(self, url,  index_name):
+        url = f"{url}/{index_name}/_delete_by_query"
 
         # Set request headers
         headers = {"Content-Type": "application/json"}
@@ -988,7 +997,7 @@ class SearchEngineIndexer:
                 logging.error("No documents deleted.")
         # Requests alternative
         else:
-            logging.info("* Deleting using requests")
+            logging.info("* Deleting using requests - Is not implemented")
 
     # Method for retrieving collection and field information in SOLR
     # Client: TODO | Requests: TEST
@@ -1005,10 +1014,12 @@ class SearchEngineIndexer:
                 field_info = json.dumps(response.json(), indent=3)
                 # logging.info(f"Field analyzer: {field_info['analyzer']}")
                 logging.info(f"→→→ Field: {field_info}")
+                return response.status_code
             else:
                 logging.error(
                     f"Error fetching field information: {response.status_code} - {response.text}"
                 )
+                return None
         except Exception as e:
             logging.error("Get error field information error.")
             logging.error(e)
@@ -1163,22 +1174,33 @@ class SearchEngineIndexer:
         return response
 
     # Sets the SOLR Analyzer to Portuguese (PT-br)
-    # Client: NO | Requests: TEST
+    # Client: NO | Requests: Ok
     # This was done via Web Interface, not code
     @log_execution_time
-    def set_pt_br_analyzer_solr(self, solr_url, field_name):
+    def set_analyzers_solr(self, solr_url):
         solr_client = self.client
 
         # Prepare the URL for the fieldType update request
         endpoint = "http://localhost:8983/api/collections/solr_index/schema/"
         # Prepare headers
         headers = {"Content-Type": "application/json"}
-        payload = {
+        payload_br = {
             # Here, there could be other operations, such as replace(update) or remove (delete)
             "add-field": {
-                "name": field_name,
+                "name": "content_br",
                 "type": "text_pt", #text_general
                 "default": "br",
+                "stored": True,
+                "indexed": True,
+                "multiValued": False
+            }
+        }
+
+        payload_en = {
+            # Here, there could be other operations, such as replace(update) or remove (delete)
+            "add-field": {
+                "name": "content_en",
+                "type": "text_general", #text_general
                 "stored": True,
                 "indexed": True,
                 "multiValued": False
@@ -1196,16 +1218,26 @@ class SearchEngineIndexer:
         else:
             logging.info(f"*** Setting SOLR with Portugese BR Analyzer for field {field_name} using requests")
             try:
-                # Get current status:
-
-                response = requests.post(endpoint, data=json.dumps(payload), headers=headers)
-                response.raise_for_status()
+                # Add content_br field to collection schema:
+                response = requests.post(endpoint, data=json.dumps(payload_br), headers=headers)
+                # response.raise_for_status()
                 response_json = json.dumps(response.json(), indent=3)
                 if response_json['response_header']['status'] == 0:
-                    logging.info(f"************ Anayzer set correctly. Response from index collection update for field []{field_name}]")
+                    logging.info(f"************ Anayzer added field content_br correctly. Response from index collection update:")
+                    logging.info(response_json)
                 else:
-                    logging.error(f"************ There was an error setting the analyzer.")
-                loggin.info(f"Field '{field_name}' analyzer set to 'Portuguese-BR' successfully.")
+                    logging.error(f"************ There was an error adding content_br.")
+
+                # Add content_br field to collection schema:
+                response = requests.post(endpoint, data=json.dumps(payload_en), headers=headers)
+                # response.raise_for_status()
+                response_json = json.dumps(response.json(), indent=3)
+                if response_json['response_header']['status'] == 0:
+                    logging.info(f"************ Anayzer added field content_en correctly. Response from index collection update:")
+                    logging.info(response_json)
+                else:
+                    logging.error(f"************ There was an error adding content_en.")
+
             except requests.exceptions.HTTPError as e:
                 print(f"HTTP error occurred: {e}")
             except requests.exceptions.RequestException as e:

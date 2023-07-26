@@ -26,7 +26,9 @@ solr_host_index = ["http://localhost:8983/solr/solr_index"]
 data_directory = "../../extraction/docs/txt/"
 
 # Test search functionality for a simple phrase query
-# OBS.: Os testes na API do QD contra o ElasticSearch indicam que dentro do python, o correto para passar query phrases é utilizar aspas simples mais externas e aspas cuplas internas com a frase a buscar. Não é necessário utilizar contrabarra
+# OBS.: Os testes na API do QD contra o ElasticSearch indicam que dentro do python, o correto para passar query phrases é utilizar aspas simples mais externas e aspas duplas internas com a frase a buscar. Não é necessário utilizar contrabarra.
+# OBS.: Para o SOLR, a query funciona para buscas por proximidade no seguinte formato:
+# query = '("violência contra mulher"~10)'
 query = "violência contra mulher"
 # query = "calendário municipal oficial"
 # query = "contribuições apontadas pela sociedade"
@@ -42,27 +44,32 @@ def solr_test():
     # Create a SOLR instance of SearchEngineIndexer
     try:
         solr_indexer = SearchEngineIndexer("SOLR", solr_host_index)
-        #solr_indexer.download_txt_from_qd(query, None, data_directory)
-        # Deleting index:
-        solr_indexer.delete_solr(solr_host_index[0])
-
-        # Process and index the files
-        logging.info("Starting to process files to SOLR index")
-        solr_indexer.process_and_index_files(data_directory)
-        logging.info("Done processing files to SOLR index")
         # Search the SOLR server
         if solr_indexer:
-            logging.info("→→→ Testing SOLR.")
+            logging.info("→→→ Running SOLR.")
 
-            # Set analyzer for Portuguese.
-            # solr_indexer.get_field_information_solr(solr_host_index[0], "content")
-            # solr_indexer.get_field_information_solr(solr_host_index[0], "content_en")
-            # solr_indexer.get_field_information_solr(solr_host_index[0], "content_br")
-            # solr_indexer.set_pt_br_analyzer_solr(solr_host_index[0], "content_en")
-            # solr_indexer.get_field_information_solr(solr_host_index[0], "content")
+            # Run only to download .txt files from a given query
+            #solr_indexer.download_txt_from_qd(query, None, data_directory)
+
+            # Deleting index:
+            # solr_indexer.delete_solr(solr_host_index[0])
+
+            # Add content_br and content_en fields to collection
+            # solr_indexer.set_analyzers_solr(solr_host_index[0])
+            # status_code = solr_indexer.get_field_information_solr(solr_host_index[0], "content_br")
+            # logging.info(f"Status_code for BR: {status_code}")
+            # status_code = solr_indexer.get_field_information_solr(solr_host_index[0], "content_en")
+            # logging.info(f"Status_code for EN: {status_code}")
+
+            # Process and index the files
+            # logging.info("Starting to process files to SOLR index")
+            # solr_indexer.process_and_index_files(data_directory)
+            # logging.info("Done processing files to SOLR index")
 
             # solr_indexer.query_with_solr("violência doméstica")
             # solr_indexer.query_with_solr('"(violência) (contra) (mulher)" ~5')
+
+            # Testing highlights
             solr_indexer.highlight_solr(query, "content_br")
             # solr_indexer.complex_query_highlight_solr("violência contra mulheres", ["pretas", "pardas", "de cor", "indígenas", "estrangeiras", "imigrantes"])
             # solr_indexer.complex_query_highlight_solr("violência contra", ["mulheres", "combate"]) # "ambiente familiar"
@@ -133,13 +140,19 @@ def opensearch_test():
         # Search using OpenSearch
         logging.info("→ OpenSearch client successful. Testing OS query:")
         try:
+            logging.info("*** Running SOLR Test.")
+            # Delete index documents:
+            # deleted = os_indexer.delete_opensearch(opensearch_hosts[0], opensearch_index)
+            # logging.info(f'* Deleted documents: {deleted}')
+
+            # Set languages:
+            # os_indexer.set_analyzers_opensearch(opensearch_hosts, opensearch_index)
+
             # logging.info("→→→ Starting to process files to OS index")
             # os_indexer.process_and_index_files(data_directory)
             # logging.info("←←← Done processing files to OS index")
             # os_indexer.query_with_opensearch(query, opensearch_index)
 
-            # Set languages:
-            # os_indexer.set_analyzers_opensearch(opensearch_hosts, opensearch_index)
 
             # Process and index the files
             # logging.info("→→→ Starting to process files to OS index")
@@ -160,6 +173,6 @@ def opensearch_test():
 
 ## Enable the desired tests to r by uncommenting the line: ##
 
-solr_test()
+# solr_test()
 # elasticsearch_test()
-# opensearch_test()
+opensearch_test()
