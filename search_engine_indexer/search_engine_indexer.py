@@ -20,9 +20,14 @@ import ssl
 import urllib3
 import certifi
 import time
-from typing import Dict
+from typing import Dict, List
 import xml.etree.ElementTree as ET
 from querido_diario_toolbox.process.text_process import remove_breaks
+
+
+#OBS.: Para o ElasticSearch, houve algum problema de memória ou disco que gera um watermark e faz com que o índice fique apenas em modo de leitura. Para contornar fiz:
+# curl -XPUT -H "Content-Type: application/json" http://localhost:9200/_all/_settings -d '{"index.blocks.read_only_allow_delete": null}'
+# curl -XPUT -H "Content-Type: application/json" http://localhost:9200/_cluster/settings -d '{ "transient": { "cluster.routing.allocation.disk.threshold_enabled": false } }'
 
 
 class SearchEngineIndexer:
@@ -66,17 +71,18 @@ class SearchEngineIndexer:
                 logging.info("*** SOLR - Status Health Check:")
                 self.client.ping()
                 # Set SOLR to use requests:
-                self.client = None
+                # self.client = None
             # No PySOLR client available
             else:
                 self.client = None
         elif search_engine == self.SEARCH_ENGINE_ES:
             try:
                 # Obs: no necessity for login/pass on 7.8.0, but seems to be default in 8.8.0, behaves as OpenSearch
-                self.client = Elasticsearch(hosts, verify_certs=False)
+                self.client = Elasticsearch(hosts, verify_certs=False, timeout=30)
                 if self.client:
                     logging.info("*** ElasticSearch client available. ***")
-                    # self.get_server_status_elasticsearch()
+                    self.get_server_status_elasticsearch()
+
                     # Uncoment in order to test Usage of Requests instead of python client
                     # self.client = None
                 else:
@@ -631,32 +637,57 @@ class SearchEngineIndexer:
     # field_name is the field that the query will be searched in
     # Client: Ok | Requests: TODO
     @log_execution_time
-    def highlight_elasticsearch(self, url: str, index_name: str, query_string: str, field_name: str, proximity_distance=None):
+    def highlight_elasticsearch(self, url: str, index_name: str, query_string: str, exclude_terms: List, field_name: str, proximity_distance=None):
         start_time = time.time()
+
+
+
         # set payload:
         # Search query
         # highlighter type:
-        type = "unified"  # unified, plain, fvh
+        type = "fvh"  # unified, plain, fvh
         query_body = {
             "query": {
-                "match_phrase": {
-                    field_name: {
-                        "query": query_string,
-                        "slop": proximity_distance or 0
+                "bool": {
+                    "filter": [],
+                    "must": {
+                        "match_phrase": {
+                            field_name: {
+                                "query": query_string,
+                                "slop": proximity_distance or 0
+                            }
+                        }
                     }
                 }
             },
             "highlight": {
                 "fields": {
-                    field_name: {}
+                    field_name: {
+                        "matched_fields": [field_name]
+                    }
                 },
                 "type": type,
                 "pre_tags": "→→→",
                 "post_tags": "←←←",
-                "number_of_fragments": 10,
-                "fragment_size": 100,
+                "number_of_fragments": 20,
+                "fragment_size": 400,
+                "order": "score"
             }
         }
+
+        # Setup must_not mixin to exclude black list terms from query
+        # Tried applying only to the highlight_query with no success
+        if exclude_terms:
+            # Parse the terms into blocks of match clauses for each term
+            terms_str = " ".join(exclude_terms)
+            query_body["query"]["bool"]["must_not"] = {
+                "match_phrase": {
+                    field_name: {
+                        "query": terms_str,
+                        "slop": proximity_distance or 0
+                    }
+                }
+            }
         # Query ES using python client
         es = self.client
         if es:
@@ -672,6 +703,7 @@ class SearchEngineIndexer:
                 for hit in hits:
                     highlight = hit.get("highlight", {})
                     highlighted_field = highlight.get(field_name, [])
+
                     # Print the highlighted content
                     logging.info("→→→ Highlights:")
                     for i, highlight in enumerate(highlighted_field[:10]):
@@ -892,13 +924,13 @@ class SearchEngineIndexer:
     # Client: Ok | Requests: Ok
     @log_execution_time
     def delete_elasticsearch(self, index_name):
-        url = f"http://localhost:9200/{index_name}/_delete_by_query"
+        url = f"http://localhost:9200/{index_name}/_delete_by_query?conflicts=proceed"
 
         # Set request headers
         headers = {"Content-Type": "application/json"}
 
         # Set the query payload
-        query = {"query": {"match_all": {}}}  # Match all documents
+        query = {"query": {"match_all": {}}}
 
         es = self.client
         # Client deletion:
@@ -1066,25 +1098,16 @@ class SearchEngineIndexer:
                 "id": {"type": "keyword"},
                 "content_br": {
                     "type": "text",
-                    "analyzer": "brazilian",
+                    "analyzer": "brazilian_with_stopwords",
                     "index_options": "offsets",
                     "term_vector": "with_positions_offsets",
-                    "fields": {
-                        "with_stopwords": {
-                            "type": "text",
-                            "analyzer": "brazilian_with_stopwords",
-                            "index_options": "offsets",
-                            "term_vector": "with_positions_offsets",
-                        },
-                        "exact": {
-                            "type": "text",
-                            "analyzer": "exact",
-                            "index_options": "offsets",
-                            "term_vector": "with_positions_offsets",
-                        },
-                    },
                 },
-                "content_en": {"type": "text"},
+                "content_en":  {
+                    "type": "text",
+                    "analyzer": "exact",
+                    "index_options": "offsets",
+                    "term_vector": "with_positions_offsets",
+                },
             }
         }
         settings = {

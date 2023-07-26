@@ -28,6 +28,7 @@ data_directory = "../../extraction/docs/txt/"
 # Test search functionality for a simple phrase query
 # OBS.: Os testes na API do QD contra o ElasticSearch indicam que dentro do python, o correto para passar query phrases é utilizar aspas simples mais externas e aspas cuplas internas com a frase a buscar. Não é necessário utilizar contrabarra
 query = "violência contra mulher"
+# query = "calendário municipal oficial"
 # query = "contribuições apontadas pela sociedade"
 # query = "projeto combate violência mulher"
 # query = '"licenciamento ambiental" processo dispensa'
@@ -43,12 +44,12 @@ def solr_test():
         solr_indexer = SearchEngineIndexer("SOLR", solr_host_index)
         #solr_indexer.download_txt_from_qd(query, None, data_directory)
         # Deleting index:
-        # solr_indexer.delete_solr(solr_host_index[0])
-        #
-        # # Process and index the files
-        # logging.info("Starting to process files to SOLR index")
-        # solr_indexer.process_and_index_files(data_directory)
-        # logging.info("Done processing files to SOLR index")
+        solr_indexer.delete_solr(solr_host_index[0])
+
+        # Process and index the files
+        logging.info("Starting to process files to SOLR index")
+        solr_indexer.process_and_index_files(data_directory)
+        logging.info("Done processing files to SOLR index")
         # Search the SOLR server
         if solr_indexer:
             logging.info("→→→ Testing SOLR.")
@@ -81,15 +82,14 @@ def elasticsearch_test():
 
         # Process and index the files
         try:
-            # Set pt_br analyzer
-            # es_indexer.set_pt_br_analyzer_elasticsearch(elasticsearch_hosts[0], elasticsearch_index)
-            # es_indexer.set_pt_br_analyzer_elasticsearch(elasticsearch_hosts[0], elasticsearch_index)
-
             # Delete index documents:
             # deleted = es_indexer.delete_elasticsearch(elasticsearch_index)
             # logging.info(f'* Deleted documents: {deleted}')
-
-            # Index files from directory:
+            #
+            # # Set pt_br analyzer
+            # es_indexer.set_pt_br_analyzer_elasticsearch(elasticsearch_hosts[0], elasticsearch_index)
+            #
+            # # Index files from directory:
             # logging.info("→→→ Starting to process files to ES index")
             # es_indexer.process_and_index_files(data_directory)
             # logging.info("←←← Done processing files to ES index")
@@ -100,7 +100,7 @@ def elasticsearch_test():
 
             # Highlight query
             # Com slop funciona para os match_phrase, mas sem o slop deixa de retornar highlighst para o fvh
-            es_indexer.highlight_elasticsearch(elasticsearch_hosts[0], elasticsearch_index, query, "content_br", 10)
+            es_indexer.highlight_elasticsearch(elasticsearch_hosts[0], elasticsearch_index, query, ["denúncia 180"], "content_br", 10)
             # logging.info("\n\n**********************\n\n")
             # es_indexer.highlight_elasticsearch(elasticsearch_index, query, "content_br")
             # Get info from the index
@@ -160,6 +160,6 @@ def opensearch_test():
 
 ## Enable the desired tests to r by uncommenting the line: ##
 
-# solr_test()
+solr_test()
 # elasticsearch_test()
-opensearch_test()
+# opensearch_test()
